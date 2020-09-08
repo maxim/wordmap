@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require 'wordmap'
+
+require 'pry'
+Pry.start
