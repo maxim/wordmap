@@ -58,7 +58,7 @@ class Wordmap
       meta_string = read_at(file, 0, 30).split(spacer, 2)[0]
       cell_size, cell_count = meta_string.split(',').map(&:to_i)
       {
-        offset:     meta_string.size + 1,
+        offset:     meta_string.bytesize + 1,
         cell_size:  cell_size,
         cell_count: cell_count,
         batch_size: [[10_000 / cell_size, 1].max, cell_count].min
