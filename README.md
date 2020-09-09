@@ -1,3 +1,5 @@
+![RSpec](https://github.com/scottscheapflights/wordmap/workflows/RSpec/badge.svg?branch=main)
+
 # Wordmap
 
 A simple way to look up UTF-8 strings on disk by key(s) or index-powered queries without using any RAM.
