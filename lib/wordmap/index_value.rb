@@ -79,11 +79,13 @@ class Wordmap
 
         next_iter =
           iters.select { |iter| iter[1] }.min_by do |iter|
-            iter[0].peek
-          rescue StopIteration
-            iter[1] = false
-            iter_exhausted = true
-            next(Float::INFINITY)
+            begin
+              iter[0].peek
+            rescue StopIteration
+              iter[1] = false
+              iter_exhausted = true
+              next(Float::INFINITY)
+            end
           end
 
         all_iters_exhausted = iters.none? { |iter| iter[1] }
