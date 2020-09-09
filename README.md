@@ -1,4 +1,4 @@
-![RSpec](https://github.com/scottscheapflights/wordmap/workflows/RSpec/badge.svg?branch=main)
+![RSpec](https://github.com/scottscheapflights/wordmap/workflows/RSpec/badge.svg)
 
 # Wordmap
 
