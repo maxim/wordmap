@@ -30,7 +30,7 @@ Or install it yourself as:
 
 ## Usage
 
-Before we can query a wordmap, we must create one first.
+Before we can query a wordmap, we must create one.
 
 ### Creating
 
@@ -78,6 +78,9 @@ fruits.query(%w[banana lemon]).to_a # => ["14", "49"]
 # Give me prices for all yellow fruits.
 fruits.query([:color, 'yellow']).to_a # => ["14", "49"]
 
+# Give me prices for all citrus and musa fruits.
+fruits.query([:genus, 'citrus', 'musa']).to_a # => ["14", "49"]
+
 # Give me prices for all yellow citruses.
 fruits.query([:genus, 'citrus'], [:color, 'yellow']).to_a # => ["49"]
 
@@ -85,9 +88,9 @@ fruits.query([:genus, 'citrus'], [:color, 'yellow']).to_a # => ["49"]
 fruits.query(%w[lemon banana], [:genus, 'citrus']).to_a # => ["49"]
 ```
 
-Each query is an array of arrays (outer array is omitted in the examples, because it works either way). Inner arrays are treated like unions (everything in them is `OR`'ed). Outer array is treated as an intersection (results of inner arrays are `AND`'ed with one another).
+Each query is an array of arrays (outer array is omitted in the examples, because it works either way). Inner arrays are treated like unions (everything in them is `OR`'ed). Outer array is treated as an intersection (results of inner arrays are `AND`'ed with one another). Order of arrays doesn't matter.
 
-If an inner array starts with a symbol, the symbol is treated as an index name you want to look in.
+If an inner array starts with a symbol, then we're looking up an index of that name, otherwise — by key(s).
 
 Tip: if you are only supplying 1 array (as in the first and second examples above), you can drop all array wrappers entirely.
 
@@ -127,33 +130,58 @@ fruits.each(:genus).to_a # => ["citrus", "musa"]
 
 ### Multi-dimensional keys
 
-In the above examples the keys are simply `'banana'` and `'lemon'` — strings. If you make your key an array of strings, that'd make a multi-dimensional key. This can come helpful for some data where 2 keys make sense (we have such use cases at Scott's). Internally, each dimension is a different vector. However if you go that route, keep in mind that all the "unused" key combinations will create gaps in the data file, therefore inflating its size. For example, if you make a key out of genus + name of a fruit, like `%w[citrus lemon]` and `%w[musa banana]`, your file will become inflated with empty cells created for `%w[citrus banana]`, `%w[musa lemon]`. That space is taken (padded with null bytes) even if there are no values for these keys.
+In the above examples the keys are simply `'banana'` and `'lemon'` — strings. If you make your key an array of strings, that'd make a multi-dimensional key. This can come helpful for some data where 2 keys make sense (we have such use cases at Scott's). Internally, each dimension is a different vector. However if you go that route, keep in mind that all the "unused" key combinations will create gaps in the data file, therefore inflating its size. For example, if you make a key out of genus + name of a fruit, like `%w[citrus lemon]` and `%w[musa banana]`, your file will become inflated with empty cells created for keys `%w[citrus banana]` and `%w[musa lemon]`. That space is taken (padded with null bytes) even though there are no values for these keys.
 
 ## Anatomy
 
-A wordmap on disk is just a directory with a few files in it.
+For those interested, here's some high level implementation and structure overview.
+
+### Staying out of RAM
+
+When you initialize a wordmap object in ruby, it opens a few file descriptors, and reads a few integers of metadata from each file. Nothing else is loaded.
+
+When making a look up, wordmap seeks and reads just the needed bytes in the file using `File#pread` function. This avoids any caching or preloading of data into RAM.
+
+### Structure
+
+A wordmap on disk is just a directory with a few files in it. The files are formatted in a content addressable way similar to "words" in computer memory.
 
 ### `data` file
 
-The data file is where the actual entries are stored. When a wordmap is created, it looks through all the entries you want to store, and finds one with the maximum bytesize. Then it makes all entries that size by padding them with null bytes in front, and dumping all of them into the file. Since this makes each entry in the file the same size, we can easily seek to any single entry by knowing its index, because it's just index times entry size. We call such padded entry a "cell".
+The data file is where your entries are stored. When a wordmap is created, it iterates through your input hash of data, and finds the longest entry. This entry determines the size of a single cell in the data file, which means that all other entries are padded to this size. (A cell is just a padded entry. It's like a spreadsheet where all cells must be equal length.) Once we dump all the cells with your entires into the data file, we can easily find each cell by its sequential index, because it's just index times cell size.
+
+For example, let's take solar system's planet names. The longest name is 7 chars, so all other names are left-padded to 7 chars. Here I'm padding with spaces, but in wordmap they'd be padded with null bytes instead.
+
+```
+Mercury  Earth   MarsJupiter Saturn Uranus Neptune
+```
+
+Now to find the 3rd item, we can just 2 * 7 = 14. We seek to 14th byte position and read 7 bytes to get `   Mars`. Then we trim the padding to get `Mars`.
 
 The important part is the order of data in this file. When a wordmap is created, all the keys are sorted lexicographically, and for every key, entry is written in the order of how the corresponding keys are sorted. This means that if we know index of where a key is positioned sequentially, we also know index of where the cell is in the data file.
 
 ### `vec` files
 
-Vector files are where keys are stored. If you used a string as a lookup key, then it creates just one vector file where every key is written in a cell padded to maximum key length just like the case with the data file. Since this file is sorted, we can easily binary-search a key in this file, and then seek to corresponding position in the data file to find the entry.
+Vector files are structured the same as data file, but they store keys instead of entries. If you used a 1-dimensional key, then it creates just one vector file. Since this file is sorted, we can apply binary-search to find a key in this file, and then seek to corresponding position in the data file to find the entry.
 
-For multi-dimensional keys, multiple vector files are created (one per dimension). Let's say we have 2-dimensional key (a key that's an array of 2 strings). The first vector will contain all the first strings, and second all the second strings. Now when wordmap is doing a lookup by key, it will first bsearch the first vector to find a "page" of entries in the data file, then it will bsearch the second vector to find an exact entry position in that page of entries. Then it will know exactly where to seek to grab the entry from the data file.
+For multi-dimensional keys, multiple vector files are created (one per dimension). Let's say we have a 2-dimensional key (a key that's an array of 2 strings). The first vector will contain all the first strings, and second all the second strings of all keys. Now when wordmap is doing a lookup by key, it will first bsearch the first vector, then bsearch the second vector. The 2 found positions are then multiplied by entry's cell size and added together to get the exact location of the cell in the data file.
 
 ### Metadata
 
-Data and vector files each have a couple of numbers at the beginning that specify cells' bytesize and count. This is the only part that wordmap reads into RAM when instantiated: 2 integers per file. Having read metadata we can derive 2 additional pieces of information: 1. the bytesize of the metadata itself, so that we can skip over it, and 2. how many cells we should read every time we read a lot of cells (to optimize sequential reads). The latter is always trying to be near ~10kb per read (unless a single cell is longer than 10kb, then it's using single cell's size).
+Data and vector files each have a couple of numbers at the beginning that specify cells' bytesize and count. This is the only part that wordmap reads into RAM when instantiated. Having read these 2 integers, we can derive 2 additional pieces of information: 
+
+1. the bytesize of the metadata itself, so that we can skip over it
+2. how many cells we should read every time we read a lot of cells (to optimize sequential reads)
+
+The latter is always trying to be near ~10kb per read (unless a single cell is longer than 10kb, then it's using single cell's size).
 
 ### Indexes
 
-Indexes are just wordmaps nested inside the wordmap you create. These inner wordmaps have index keys as the keys, and lists of locations as values. The values of indexes are invisible to the end user, but since this section is about anatomy, it makes sense to mention them. The locations are stored as a comma-separated list of [delta encoded](https://en.wikipedia.org/wiki/Delta_encoding) sorted integers and ranges. For example, if we are storing locations `1,3,5,6,7,8,12,15` the stored value will look like this: `1,2,2+3,4,3`. You can unpack this value by saying "first position is **1**, second position is 1 + 2 = **3**, third position is 3 + 2 = **5**, now add 3 more successively: **6,7,8**, then 8 + 4 = **12**, and 12 + 3 = **15**".
+Indexes are just recursively-nested wordmaps inside the wordmap you create. These nested wordmaps have index keys as the keys, and lists of locations as values. The values of indexes are invisible to the end user, but since this section is about anatomy, it makes sense to mention them.
 
-When processing a query, wordmap produces lazy iterators for unioning and intersecting data. These iterators lazily walk indexed locations, or keys in a vector file, and return each found entry from the data file.
+The locations are stored as a comma-separated list of [delta encoded](https://en.wikipedia.org/wiki/Delta_encoding) sorted integers and ranges. For example, if we are storing locations `1,3,5,6,7,8,12,15` the stored value will look like this: `1,2,2+3,4,3`. You can unpack this value by saying "first position is **1**, second position is 1 + 2 = **3**, third position is 3 + 2 = **5**, now add 3 more successively: **6,7,8**, then 8 + 4 = **12**, and 12 + 3 = **15**".
+
+When looking up a query, wordmap produces lazy iterators for unioning and intersecting data. These iterators lazily walk indexed locations, or keys in a vector file, and return each found entry from the data file.
 
 ## Development
 
