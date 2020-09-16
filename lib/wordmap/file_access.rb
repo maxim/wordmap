@@ -68,8 +68,7 @@ class Wordmap
     def read_at(file, pos, bytes)
       # puts "Seeking in #{file.path.split('.wmap', 2)[1][1..-1]} to #{pos}, " \
       #      "and reading #{bytes} bytes"
-      file.sysseek(pos)
-      file.sysread(bytes)
+      file.pread(bytes, pos)
     end
   end
 end

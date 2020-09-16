@@ -112,6 +112,19 @@ RSpec.describe Wordmap do
         expect(wmap['wrong-isbn', trace: trace]).to eq([])
         expect(reads_breakdown(trace)).to eq([[:bsearch_vec, 3]])
       end
+
+      it 'does thread safe lookups' do
+        wmap['9780385689229'] # Seeking in parent thread.
+        concurrency = 100
+
+        threads = concurrency.times.map {
+          Thread.new { Thread.current[:book] = !wmap['9780385689229'][0].nil? }
+        }
+
+        success_count = threads.map { |t| t.join[:book] }.count(&:itself)
+        expect(success_count).to eq(concurrency),
+          "#{success_count}/#{threads.size} threads succeeded"
+      end
     end
 
     describe '#query' do

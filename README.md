@@ -12,6 +12,8 @@ Useful in cases where:
 
 ## Installation
 
+Note: Requires at least ruby 2.5 to support `File#pread` function.
+
 Add this line to your application's Gemfile:
 
 ```ruby
