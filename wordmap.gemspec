@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.email   = ['madfancier@gmail.com']
 
   spec.summary     = 'Look up data from disk without using your RAM.'
-  spec.description = 'Wordmap is a simple way to lookup data directly from disk, bypassing RAM completely. It uses sysseek and sysread (no buffering), and takes advantage of SSD\'s constant seek time. The data is stored in equal size "cells" making it easy to calculate where things are located based on vectors.'
+  spec.description = 'Wordmap is a simple way to lookup data directly from disk, bypassing RAM. It uses pread (no buffering), and takes advantage of SSD\'s constant seek time. The data is stored in equal size "cells" making it easy to calculate where things are located based on vectors.'
   spec.homepage    = 'https://github.com/scottscheapflights/wordmap'
   spec.license     = 'Apache-2.0'
 
