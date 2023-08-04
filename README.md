@@ -1,4 +1,4 @@
-![RSpec](https://github.com/scottscheapflights/wordmap/workflows/RSpec/badge.svg)
+![RSpec](https://github.com/maxim/wordmap/workflows/RSpec/badge.svg)
 
 # Wordmap
 
@@ -130,7 +130,7 @@ fruits.each(:genus).to_a # => ["citrus", "musa"]
 
 ### Multi-dimensional keys
 
-In the above examples the keys are simply `'banana'` and `'lemon'` — strings. If you make your key an array of strings, that'd make a multi-dimensional key. This can come helpful for some data where 2 keys make sense (we have such use cases at Scott's). Internally, each dimension is a different vector. However if you go that route, keep in mind that all the "unused" key combinations will create gaps in the data file, therefore inflating its size. For example, if you make a key out of genus + name of a fruit, like `%w[citrus lemon]` and `%w[musa banana]`, your file will become inflated with empty cells created for keys `%w[citrus banana]` and `%w[musa lemon]`. That space is taken (padded with null bytes) even though there are no values for these keys.
+In the above examples the keys are simply `'banana'` and `'lemon'` — strings. If you make your key an array of strings, that'd make a multi-dimensional key. This can come helpful for some data where 2 keys make sense. Internally, each dimension is a different vector. However if you go that route, keep in mind that all the "unused" key combinations will create gaps in the data file, therefore inflating its size. For example, if you make a key out of genus + name of a fruit, like `%w[citrus lemon]` and `%w[musa banana]`, your file will become inflated with empty cells created for keys `%w[citrus banana]` and `%w[musa lemon]`. That space is taken (padded with null bytes) even though there are no values for these keys.
 
 ## Anatomy
 
