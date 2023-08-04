@@ -14,7 +14,7 @@ class Wordmap
 
   class << self
     def create(path, hash, index_names = [])
-      raise ArgumentError, "Path already exists: #{path}" if Dir.exists?(path)
+      raise ArgumentError, "Path already exists: #{path}" if Dir.exist?(path)
 
       index_data = index_names.map { |name| [name, {}] }.to_h
       vecs = Builder.build_vectors(hash)
